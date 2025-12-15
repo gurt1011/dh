@@ -1,5 +1,33 @@
--- 1️⃣ Load Rayfield and create window first
+-- Load Rayfield
 local Rayfield = loadstring(game:HttpGet('https://pastebin.com/raw/yy6ZH1Mq'))()
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Debris = game:GetService("Debris")
+
+-- PLAYER
+local localPlayer = Players.LocalPlayer
+local liveFolder = Workspace:WaitForChild("Live")
+local char = localPlayer.Character or localPlayer.CharacterAdded:Wait()
+local hum = char:WaitForChild("Humanoid")
+
+-- SETTINGS
+local MAX_RANGE = 200
+local MAX_PLAYER_RANGE = 6000
+local HP_BAR_MAX_DISTANCE = 150
+local PLAYER_ESP_ENABLED = true
+local NPC_ESP_ENABLED = true
+local TpWalking = true
+local Speed = 0.40
+local isSprinting = false
+local SlayerEnabled = true
+local DemonEnabled = true
+local ESP_GUIS = {}
+local valuesToRemove = {"isDashing"}
+local delayTime = 0.8
+
+-- Create Window
 local Window = Rayfield:CreateWindow({
     Name = "GURTHUB REMASTERED DH",
     LoadingTitle = "Loading...",
@@ -9,7 +37,7 @@ local Window = Rayfield:CreateWindow({
     KeySettings = {
         Title = "SECRET PASSWORD",
         Subtitle = "Key System",
-        Note = "Yayo's Favorite Bussy?",
+        Note = "Enter Key",
         FileName = "Key",
         SaveKey = true,
         GrabKeyFromSite = false,
@@ -17,42 +45,21 @@ local Window = Rayfield:CreateWindow({
     }
 })
 
--- 2️⃣ Services and Variables
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
-local UserInputService = game:GetService("UserInputService")
-
-local localPlayer = Players.LocalPlayer
-local liveFolder = Workspace:WaitForChild("Live")
-
-local MAX_RANGE = 200
-local MAX_PLAYER_RANGE = 6000
-local HP_BAR_MAX_DISTANCE = 150
-local PLAYER_ESP_ENABLED = true
-local NPC_ESP_ENABLED = true
-local ESP_GUIS = {}
-
--- 3️⃣ Helper function
-local function getHealthColor(percent)
-    if percent >= 0.7 then
-        return Color3.fromRGB(0, 255, 0)
-    elseif percent >= 0.3 then
-        return Color3.fromRGB(255, 255, 0)
-    else
-        return Color3.fromRGB(255, 0, 0)
-    end
-end
-
--- 4️⃣ Create Rayfield Tabs & Sections
+-- Tabs
 local ESPTab = Window:CreateTab("ESP", 4483362458)
 local SettingsTab = Window:CreateTab("Settings", 4483362458)
+local CombatTab = Window:CreateTab("Combat", 4483362458)
 
+-- Sections
 local PlayerESPSection = ESPTab:CreateSection("Player ESP")
 local NPCESPSection = ESPTab:CreateSection("NPC ESP")
+local SlayerSection = CombatTab:CreateSection("Slayer Combat")
+local DemonSection = CombatTab:CreateSection("Demon Combat")
 
--- 5️⃣ Rayfield Toggles & Sliders
-ESPTab:CreateToggle({
+--------------------------------------------------
+-- ESP TOGGLES
+--------------------------------------------------
+PlayerESPSection:CreateToggle({
     Name = "Player ESP (F3)",
     CurrentValue = true,
     Flag = "PlayerESP",
@@ -61,7 +68,7 @@ ESPTab:CreateToggle({
     end,
 })
 
-ESPTab:CreateToggle({
+NPCESPSection:CreateToggle({
     Name = "NPC ESP (F4)",
     CurrentValue = true,
     Flag = "NPCESP",
@@ -70,6 +77,7 @@ ESPTab:CreateToggle({
     end,
 })
 
+-- OPTIONAL RANGE SLIDERS
 ESPTab:CreateSlider({
     Name = "Player ESP Range",
     Range = {500, 6000},
@@ -106,99 +114,66 @@ ESPTab:CreateSlider({
     end,
 })
 
-Rayfield:Notify({
-    Title = "GURTHUB Loaded",
-    Content = "ESP controls are ready",
-    Duration = 5,
-    Image = 4483362458,
+--------------------------------------------------
+-- COMBAT TOGGLES
+--------------------------------------------------
+SlayerSection:CreateToggle({
+    Name = "Enable Slayer Combat",
+    CurrentValue = true,
+    Flag = "SlayerToggle",
+    Callback = function(Value)
+        SlayerEnabled = Value
+    end
 })
 
--- 6️⃣ Input handling for F3/F4
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode == Enum.KeyCode.F3 then
-        PLAYER_ESP_ENABLED = not PLAYER_ESP_ENABLED
-        for gui in pairs(ESP_GUIS) do
-            if gui and gui.Parent and gui:GetAttribute("Type") == "Player" then
-                gui.Enabled = PLAYER_ESP_ENABLED
-            end
-        end
-    elseif input.KeyCode == Enum.KeyCode.F4 then
-        NPC_ESP_ENABLED = not NPC_ESP_ENABLED
-        for gui in pairs(ESP_GUIS) do
-            if gui and gui.Parent and gui:GetAttribute("Type") == "NPC" then
-                gui.Enabled = NPC_ESP_ENABLED
-            end
-        end
+DemonSection:CreateToggle({
+    Name = "Enable Demon Combat Cleanup",
+    CurrentValue = true,
+    Flag = "DemonToggle",
+    Callback = function(Value)
+        DemonEnabled = Value
     end
-end)
+})
 
--- 7️⃣ NPC ESP
-local function createNPCESP(humanoid)
-    local model = humanoid.Parent
-    if not model or not model.Name:match("^NPC") then return end
-    local head = model:FindFirstChild("Head")
-    local hrp = model:FindFirstChild("HumanoidRootPart")
-    if not head or not hrp then return end
+SlayerSection:CreateSlider({
+    Name = "TP Walk Speed",
+    Range = {0.1, 1.0},
+    Increment = 0.01,
+    Suffix = "",
+    CurrentValue = Speed,
+    Flag = "TPSpeed",
+    Callback = function(Value)
+        Speed = Value
+    end
+})
 
-    if head:FindFirstChild("ESP") then head.ESP:Destroy() end
-
-    local gui = Instance.new("BillboardGui")
-    gui.Name = "ESP"
-    gui.Adornee = head
-    gui.Size = UDim2.fromScale(6, 2)
-    gui.StudsOffset = Vector3.new(0, 5, 0)
-    gui.AlwaysOnTop = true
-    gui.Parent = head
-    gui:SetAttribute("Type", "NPC")
-    ESP_GUIS[gui] = true
-
-    local bg = Instance.new("Frame")
-    bg.Size = UDim2.fromScale(1, 0.18)
-    bg.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    bg.BorderSizePixel = 0
-    bg.Parent = gui
-
-    local hp = Instance.new("Frame")
-    hp.Size = UDim2.fromScale(1, 1)
-    hp.BorderSizePixel = 0
-    hp.Parent = bg
-
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.fromScale(1, 1)
-    label.Position = UDim2.fromScale(0, 0.25)
-    label.BackgroundTransparency = 1
-    label.TextSize = 16
-    label.FontFace = Font.new("rbxasset://fonts/families/NotoSans.json", Enum.FontWeight.Bold)
-    label.TextColor3 = Color3.new(1, 1, 1)
-    label.Parent = gui
-
-    RunService.RenderStepped:Connect(function()
-        if not NPC_ESP_ENABLED then gui.Enabled = false return end
-        if not localPlayer.Character or not model.Parent then
-            gui:Destroy()
-            ESP_GUIS[gui] = nil
-            return
-        end
-
-        local myHRP = localPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not myHRP then return end
-        local dist = (myHRP.Position - hrp.Position).Magnitude
-        gui.Enabled = dist <= MAX_RANGE
-
-        if gui.Enabled then
-            local hpPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
-            hp.Size = UDim2.fromScale(hpPercent, 1)
-            hp.BackgroundColor3 = getHealthColor(hpPercent)
-            label.Text = model.Name .. " [" .. math.floor(dist) .. " studs]"
-        end
-    end)
+--------------------------------------------------
+-- HELPER FUNCTIONS
+--------------------------------------------------
+local function getHealthColor(percent)
+    if percent >= 0.7 then
+        return Color3.fromRGB(0, 255, 0)
+    elseif percent >= 0.3 then
+        return Color3.fromRGB(255, 255, 0)
+    else
+        return Color3.fromRGB(255, 0, 0)
+    end
 end
 
--- 8️⃣ Player ESP
+local function getSprintMultiplier(hpPercent)
+    if hpPercent >= 0.8 then return 1.2
+    elseif hpPercent >= 0.6 then return 1.56
+    elseif hpPercent >= 0.4 then return 1.92
+    elseif hpPercent >= 0.2 then return 2.28
+    else return 2.64
+    end
+end
+
+--------------------------------------------------
+-- PLAYER ESP
+--------------------------------------------------
 local function createPlayerESP(player, character)
     if player == localPlayer then return end
-
     local humanoid = character:WaitForChild("Humanoid", 5)
     local head = character:WaitForChild("Head", 5)
     local hrp = character:WaitForChild("HumanoidRootPart", 5)
@@ -212,8 +187,9 @@ local function createPlayerESP(player, character)
     gui.Size = UDim2.fromOffset(200, 55)
     gui.StudsOffset = Vector3.new(0, 6, 0)
     gui.AlwaysOnTop = true
+    gui.Enabled = PLAYER_ESP_ENABLED
     gui.Parent = head
-    gui:SetAttribute("Type", "Player")
+
     ESP_GUIS[gui] = true
 
     local bg = Instance.new("Frame")
@@ -250,46 +226,25 @@ local function createPlayerESP(player, character)
 
     RunService.RenderStepped:Connect(function()
         if not PLAYER_ESP_ENABLED then gui.Enabled = false return end
-        if not character.Parent then
-            gui:Destroy()
-            ESP_GUIS[gui] = nil
-            return
-        end
-
+        if not character.Parent then gui:Destroy() ESP_GUIS[gui] = nil return end
         local myHRP = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
         if not myHRP then return end
-
-        local dist = (myHRP.Position - hrp.Position).Magnitude
+        local dist = math.floor((myHRP.Position - hrp.Position).Magnitude)
         gui.Enabled = dist <= MAX_PLAYER_RANGE
-
+        if not gui.Enabled then return end
         local hpPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
         bg.Visible = dist <= HP_BAR_MAX_DISTANCE
         if bg.Visible then
             hp.Size = UDim2.fromScale(hpPercent, 1)
             hp.BackgroundColor3 = getHealthColor(hpPercent)
         end
-
         nameLabel.Text = player.Name .. " [" .. math.floor(humanoid.Health) .. " HP]"
-        distLabel.Text = math.floor(dist) .. " studs"
+        distLabel.Text = dist .. " studs"
     end)
 end
 
--- 9️⃣ Hook NPCs
-for _, obj in ipairs(liveFolder:GetChildren()) do
-    local hum = obj:FindFirstChildWhichIsA("Humanoid")
-    if hum then createNPCESP(hum) end
-end
-
-liveFolder.ChildAdded:Connect(function(child)
-    local hum = child:FindFirstChildWhichIsA("Humanoid")
-    if hum then createNPCESP(hum) end
-end)
-
--- 10️⃣ Hook Players
 for _, plr in ipairs(Players:GetPlayers()) do
-    if plr.Character then
-        task.spawn(createPlayerESP, plr, plr.Character)
-    end
+    if plr.Character then task.spawn(createPlayerESP, plr, plr.Character) end
     plr.CharacterAdded:Connect(function(char)
         task.spawn(createPlayerESP, plr, char)
     end)
@@ -300,3 +255,117 @@ Players.PlayerAdded:Connect(function(plr)
         task.spawn(createPlayerESP, plr, char)
     end)
 end)
+
+--------------------------------------------------
+-- NPC ESP
+--------------------------------------------------
+local function createNPCESP(humanoid)
+    local model = humanoid.Parent
+    if not model or not model.Name:match("^NPC") then return end
+    local head = model:FindFirstChild("Head")
+    local hrp = model:FindFirstChild("HumanoidRootPart")
+    if not head or not hrp then return end
+    if head:FindFirstChild("ESP") then head.ESP:Destroy() end
+
+    local gui = Instance.new("BillboardGui")
+    gui.Name = "ESP"
+    gui.Adornee = head
+    gui.Size = UDim2.fromScale(6, 2)
+    gui.StudsOffset = Vector3.new(0, 5, 0)
+    gui.AlwaysOnTop = true
+    gui.Enabled = NPC_ESP_ENABLED
+    gui.Parent = head
+
+    ESP_GUIS[gui] = true
+
+    local bg = Instance.new("Frame")
+    bg.Size = UDim2.fromScale(1, 0.18)
+    bg.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    bg.BorderSizePixel = 0
+    bg.Parent = gui
+
+    local hp = Instance.new("Frame")
+    hp.Size = UDim2.fromScale(1, 1)
+    hp.BorderSizePixel = 0
+    hp.Parent = bg
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.fromScale(1, 1)
+    label.Position = UDim2.fromScale(0, 0.25)
+    label.BackgroundTransparency = 1
+    label.TextSize = 16
+    label.FontFace = Font.new("rbxasset://fonts/families/NotoSans.json", Enum.FontWeight.Bold)
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.Parent = gui
+
+    RunService.RenderStepped:Connect(function()
+        if not NPC_ESP_ENABLED then gui.Enabled = false return end
+        if not localPlayer.Character or not model.Parent then gui:Destroy() ESP_GUIS[gui] = nil return end
+        local myHRP = localPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if not myHRP then return end
+        local dist = (myHRP.Position - hrp.Position).Magnitude
+        gui.Enabled = dist <= MAX_RANGE
+        if gui.Enabled then
+            local hpPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
+            hp.Size = UDim2.fromScale(hpPercent, 1)
+            hp.BackgroundColor3 = getHealthColor(hpPercent)
+            label.Text = model.Name .. " [" .. math.floor(dist) .. " studs]"
+        end
+    end)
+end
+
+for _, obj in ipairs(liveFolder:GetChildren()) do
+    local hum = obj:FindFirstChildWhichIsA("Humanoid")
+    if hum then createNPCESP(hum) end
+end
+
+liveFolder.ChildAdded:Connect(function(child)
+    local hum = child:FindFirstChildWhichIsA("Humanoid")
+    if hum then createNPCESP(hum) end
+end)
+
+--------------------------------------------------
+-- COMBAT HEARTBEAT
+--------------------------------------------------
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if not gpe and input.KeyCode == Enum.KeyCode.LeftShift then
+        isSprinting = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.LeftShift then
+        isSprinting = false
+    end
+end)
+
+RunService.Heartbeat:Connect(function(dt)
+    if not char or not hum or not hum.Parent then return end
+
+    -- Dash cleanup
+    if DemonEnabled or SlayerEnabled then
+        for _, child in ipairs(char:GetChildren()) do
+            if table.find(valuesToRemove, child.Name) then
+                Debris:AddItem(child, delayTime)
+            end
+        end
+    end
+
+    -- TP Walking
+    if SlayerEnabled and TpWalking and hum.MoveDirection.Magnitude > 0 then
+        local move = hum.MoveDirection * Speed * dt
+        if isSprinting then
+            local hpPercent = hum.Health / hum.MaxHealth
+            move *= (6 * getSprintMultiplier(hpPercent))
+        end
+        char:TranslateBy(move)
+    end
+end)
+
+-- Notification
+Rayfield:Notify({
+    Title = "GURTHUB Loaded",
+    Content = "ESP & Combat ready",
+    Duration = 5,
+    Image = 4483362458
+})
