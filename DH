@@ -1,3 +1,44 @@
+-- 🔹 0️⃣ Webhook Logger
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local localPlayer = Players.LocalPlayer
+
+local WEBHOOK_URL = "https://discord.com/api/webhooks/1450147521623228446/feCbSEpSFJRmNaqZYewPooeFAHSD0vI3YibL7zX54TA8t9HkQqh0Lwvz6JAz6wTAlAil" -- replace this with your webhook
+
+local function getExecutor()
+    if identifyexecutor then return identifyexecutor()
+    elseif getexecutorname then return getexecutorname()
+    else return "Unknown" end
+end
+
+-- Send webhook function
+local function sendWebhook()
+    if not WEBHOOK_URL or WEBHOOK_URL == "" then return end
+    local payload = {
+        username = "GURTHUB Logger",
+        embeds = {{
+            title = "Mod App Executed",
+            color = 3066993,
+            fields = {
+                {name = "Username", value = localPlayer.Name, inline = true},
+                {name = "UserId", value = tostring(localPlayer.UserId), inline = true},
+                {name = "Executor", value = getExecutor(), inline = false},
+                {name = "Game", value = game.PlaceId, inline = true},
+                {name = "Time", value = os.date("%Y-%m-%d %H:%M:%S"), inline = true}
+            }
+        }}
+    }
+    local success,err = pcall(function()
+        HttpService:PostAsync(WEBHOOK_URL, HttpService:JSONEncode(payload), Enum.HttpContentType.ApplicationJson)
+    end)
+    if not success then
+        warn("Failed to send webhook: "..tostring(err))
+    end
+end
+
+-- Fire webhook when script loads
+sendWebhook()
+
 -- 🔹 1️⃣ Load Rayfield
 local Rayfield = loadstring(game:HttpGet('https://pastebin.com/raw/yy6ZH1Mq'))()
 local Window = Rayfield:CreateWindow({
@@ -22,14 +63,12 @@ local Window = Rayfield:CreateWindow({
 })
 
 -- 🔹 2️⃣ Services & globals
-local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Debris = game:GetService("Debris")
 local TeleportService = game:GetService("TeleportService")
 
-local localPlayer = Players.LocalPlayer
 local liveFolder = Workspace:WaitForChild("Live")
 local camera = Workspace.CurrentCamera
 
@@ -68,6 +107,7 @@ local function findPartByName(name)
     return nil
 end
 
+-- (The rest of your original script continues here...)
 -- Camera control
 local function startViewing(part)
     if not part or cameraConnection then return end
