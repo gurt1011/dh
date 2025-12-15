@@ -1,0 +1,117 @@
+-- Load Rayfield
+local Rayfield = loadstring(game:HttpGet('https://pastebin.com/raw/yy6ZH1Mq'))()
+local HttpService = game:GetService("HttpService")
+
+--------------------------------------------------
+-- WINDOW
+--------------------------------------------------
+local Window = Rayfield:CreateWindow({
+    Name = "GURTHUB REMASTERED DH",
+    LoadingTitle = "Loading...",
+    LoadingSubtitle = "by Boxxy",
+
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "RayfieldConfigs",
+        FileName = "MyUIConfig"
+    },
+
+    KeySystem = true,
+    KeySettings = {
+        Title = "SECRET PASSWORD",
+        Subtitle = "Key System",
+        Note = "Yayo's Favorite Bussy?",
+        FileName = "Key",
+        SaveKey = true,
+        GrabKeyFromSite = false,
+        Key = { "pancake", "Pancake" }
+    }
+})
+
+--------------------------------------------------
+-- TABS
+--------------------------------------------------
+local ESPTab = Window:CreateTab("ESP", 4483362458)
+local SettingsTab = Window:CreateTab("Settings", 4483362458)
+
+--------------------------------------------------
+-- SECTIONS
+--------------------------------------------------
+local PlayerESPSection = ESPTab:CreateSection("Player ESP")
+local NPCESPSection = ESPTab:CreateSection("NPC ESP")
+
+--------------------------------------------------
+-- PLAYER ESP TOGGLE (F3)
+--------------------------------------------------
+ESPTab:CreateToggle({
+    Name = "Player ESP (F3)",
+    CurrentValue = true,
+    Flag = "PlayerESP",
+    Callback = function(Value)
+        PLAYER_ESP_ENABLED = Value
+    end,
+})
+
+--------------------------------------------------
+-- NPC ESP TOGGLE (F4)
+--------------------------------------------------
+ESPTab:CreateToggle({
+    Name = "NPC ESP (F4)",
+    CurrentValue = true,
+    Flag = "NPCESP",
+    Callback = function(Value)
+        NPC_ESP_ENABLED = Value
+    end,
+})
+
+--------------------------------------------------
+-- OPTIONAL RANGE SLIDERS
+--------------------------------------------------
+ESPTab:CreateSlider({
+    Name = "Player ESP Range",
+    Range = {500, 6000},
+    Increment = 100,
+    Suffix = "Studs",
+    CurrentValue = MAX_PLAYER_RANGE or 6000,
+    Flag = "PlayerRange",
+    Callback = function(Value)
+        MAX_PLAYER_RANGE = Value
+    end,
+})
+
+ESPTab:CreateSlider({
+    Name = "NPC ESP Range",
+    Range = {50, 500},
+    Increment = 10,
+    Suffix = "Studs",
+    CurrentValue = MAX_RANGE or 200,
+    Flag = "NPCRange",
+    Callback = function(Value)
+        MAX_RANGE = Value
+    end,
+})
+
+--------------------------------------------------
+-- HP BAR DISTANCE
+--------------------------------------------------
+ESPTab:CreateSlider({
+    Name = "HP Bar Max Distance",
+    Range = {25, 300},
+    Increment = 5,
+    Suffix = "Studs",
+    CurrentValue = HP_BAR_MAX_DISTANCE or 150,
+    Flag = "HPDistance",
+    Callback = function(Value)
+        HP_BAR_MAX_DISTANCE = Value
+    end,
+})
+
+--------------------------------------------------
+-- NOTIFICATION
+--------------------------------------------------
+Rayfield:Notify({
+    Title = "GURTHUB Loaded",
+    Content = "ESP controls are ready",
+    Duration = 5,
+    Image = 4483362458,
+})
