@@ -1,4 +1,4 @@
--- 🔹 1️⃣ Load Rayfield and create window
+-- 🔹 1️⃣ Load Rayfield
 local Rayfield = loadstring(game:HttpGet('https://pastebin.com/raw/yy6ZH1Mq'))()
 local Window = Rayfield:CreateWindow({
     Name = "GURTHUB REMASTERED DH",
@@ -27,32 +27,93 @@ local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Debris = game:GetService("Debris")
+local TeleportService = game:GetService("TeleportService")
 
 local localPlayer = Players.LocalPlayer
 local liveFolder = Workspace:WaitForChild("Live")
+local camera = Workspace.CurrentCamera
 
+-- ESP Settings
 local MAX_RANGE = 200
 local MAX_PLAYER_RANGE = 6000
 local HP_BAR_MAX_DISTANCE = 150
-
--- Toggles for ESP & Combat
 local PLAYER_ESP_ENABLED = true
 local NPC_ESP_ENABLED = true
+local ESP_GUIS = {}
+
+-- Combat Toggles
 local SLAYER_COMBAT_ENABLED = false
 local DEMON_COMBAT_ENABLED = false
 
--- Store ESP GUIs
-local ESP_GUIS = {}
+-- TP UI State
+local activeViewPart = nil
+local cameraConnection = nil
+local savedCameraType = nil
+local savedCameraSubject = nil
+local mouseDelta = Vector2.new(0,0)
 
--- 🔹 3️⃣ Helper function
+-- 🔹 3️⃣ Helper Functions
 local function getHealthColor(percent)
-    if percent >= 0.7 then
-        return Color3.fromRGB(0, 255, 0)
-    elseif percent >= 0.3 then
-        return Color3.fromRGB(255, 255, 0)
-    else
-        return Color3.fromRGB(255, 0, 0)
+    if percent >= 0.7 then return Color3.fromRGB(0,255,0)
+    elseif percent >= 0.3 then return Color3.fromRGB(255,255,0)
+    else return Color3.fromRGB(255,0,0) end
+end
+
+local function findPartByName(name)
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and obj.Name:lower() == name:lower() then
+            return obj
+        end
     end
+    return nil
+end
+
+-- Camera control
+local function startViewing(part)
+    if not part or cameraConnection then return end
+    savedCameraType = camera.CameraType
+    savedCameraSubject = camera.CameraSubject
+    activeViewPart = part
+    camera.CameraType = Enum.CameraType.Scriptable
+    mouseDelta = Vector2.new(0,0)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and activeViewPart then
+            mouseDelta = mouseDelta + Vector2.new(input.Delta.X,input.Delta.Y) * 0.2
+            mouseDelta = Vector2.new(mouseDelta.X, math.clamp(mouseDelta.Y,-80,80))
+        end
+    end)
+
+    cameraConnection = RunService.RenderStepped:Connect(function()
+        if not activeViewPart then return end
+        local partPos = activeViewPart.Position
+        local distance = 14
+        local height = 8
+        local yaw = math.rad(mouseDelta.X)
+        local pitch = math.rad(-mouseDelta.Y)
+        local offset = CFrame.Angles(pitch,yaw,0):VectorToWorldSpace(Vector3.new(0,height,-distance))
+        camera.CFrame = CFrame.new(partPos + offset, partPos)
+    end)
+end
+
+local function stopViewing()
+    activeViewPart = nil
+    mouseDelta = Vector2.new(0,0)
+    if cameraConnection then cameraConnection:Disconnect() cameraConnection=nil end
+    camera.CameraType = savedCameraType or Enum.CameraType.Custom
+    camera.CameraSubject = savedCameraSubject or localPlayer.Character:WaitForChild("Humanoid")
+end
+
+local function teleportTo(partName)
+    local part = findPartByName(partName)
+    if not part then return end
+    local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    hrp.CFrame = part.CFrame + Vector3.new(0,5,0)
+end
+
+local function teleportToPlace(placeId)
+    TeleportService:Teleport(placeId, localPlayer)
 end
 
 -- 🔹 4️⃣ ESP Functions
@@ -62,12 +123,12 @@ local function createNPCESP(humanoid)
     local head = model:FindFirstChild("Head")
     local hrp = model:FindFirstChild("HumanoidRootPart")
     if not head or not hrp then return end
-
     if head:FindFirstChild("ESP") then head.ESP:Destroy() end
+
     local gui = Instance.new("BillboardGui")
     gui.Name = "ESP"
     gui.Adornee = head
-    gui.Size = UDim2.fromScale(6, 2)
+    gui.Size = UDim2.fromScale(6,2)
     gui.StudsOffset = Vector3.new(0,5,0)
     gui.AlwaysOnTop = true
     gui.Enabled = NPC_ESP_ENABLED
@@ -120,8 +181,8 @@ local function createPlayerESP(player, character)
     local head = character:WaitForChild("Head",5)
     local hrp = character:WaitForChild("HumanoidRootPart",5)
     if not humanoid or not head or not hrp then return end
-
     if head:FindFirstChild("ESP") then head.ESP:Destroy() end
+
     local gui = Instance.new("BillboardGui")
     gui.Name = "ESP"
     gui.Adornee = head
@@ -188,7 +249,7 @@ local function createPlayerESP(player, character)
     end)
 end
 
--- 🔹 5️⃣ Hook ESP
+-- Hook ESP
 for _, obj in ipairs(liveFolder:GetChildren()) do
     local hum = obj:FindFirstChildWhichIsA("Humanoid")
     if hum then createNPCESP(hum) end
@@ -198,22 +259,14 @@ liveFolder.ChildAdded:Connect(function(child)
     if hum then createNPCESP(hum) end
 end)
 for _, plr in ipairs(Players:GetPlayers()) do
-    if plr.Character then
-        task.spawn(createPlayerESP, plr, plr.Character)
-    end
-    plr.CharacterAdded:Connect(function(char)
-        task.spawn(createPlayerESP, plr, char)
-    end)
+    if plr.Character then task.spawn(createPlayerESP,plr,plr.Character) end
+    plr.CharacterAdded:Connect(function(char) task.spawn(createPlayerESP,plr,char) end)
 end
 Players.PlayerAdded:Connect(function(plr)
-    plr.CharacterAdded:Connect(function(char)
-        task.spawn(createPlayerESP, plr, char)
-    end)
+    plr.CharacterAdded:Connect(function(char) task.spawn(createPlayerESP,plr,char) end)
 end)
 
--- 🔹 6️⃣ Combat Modes
-
--- Slayer Combat
+-- 🔹 5️⃣ Combat Functions (Slayer & Demon)
 local function startSlayerCombat()
     local player = Players.LocalPlayer
     local char = player.Character or player.CharacterAdded:Wait()
@@ -224,57 +277,43 @@ local function startSlayerCombat()
     local valuesToRemove = {"isDashing"}
     local delayTime = 0.8
 
-    -- Input
-    UserInputService.InputBegan:Connect(function(input, gpe)
-        if not gpe and input.KeyCode == Enum.KeyCode.LeftShift then
-            isSprinting = true
-        end
+    UserInputService.InputBegan:Connect(function(input,gpe)
+        if not gpe and input.KeyCode == Enum.KeyCode.LeftShift then isSprinting=true end
     end)
     UserInputService.InputEnded:Connect(function(input)
-        if input.KeyCode == Enum.KeyCode.LeftShift then
-            isSprinting = false
-        end
+        if input.KeyCode == Enum.KeyCode.LeftShift then isSprinting=false end
     end)
 
     local function getSprintMultiplier(hpPercent)
-        if hpPercent >= 0.8 then return 1.2
-        elseif hpPercent >= 0.6 then return 1.56
-        elseif hpPercent >= 0.4 then return 1.92
-        elseif hpPercent >= 0.2 then return 2.28
-        else return 2.64
-        end
+        if hpPercent>=0.8 then return 1.2
+        elseif hpPercent>=0.6 then return 1.56
+        elseif hpPercent>=0.4 then return 1.92
+        elseif hpPercent>=0.2 then return 2.28
+        else return 2.64 end
     end
 
     RunService.Heartbeat:Connect(function(dt)
         if not SLAYER_COMBAT_ENABLED then return end
         if not char or not hum or not hum.Parent then return end
-
-        -- Dash cleanup
         for _, child in ipairs(char:GetChildren()) do
-            if table.find(valuesToRemove, child.Name) then
-                Debris:AddItem(child, delayTime)
+            if table.find(valuesToRemove,child.Name) then
+                Debris:AddItem(child,delayTime)
             end
         end
-
-        -- TP Walking
-        if hum.MoveDirection.Magnitude > 0 then
-            local move = hum.MoveDirection * getgenv().Speed * dt
+        if hum.MoveDirection.Magnitude>0 then
+            local move = hum.MoveDirection*getgenv().Speed*dt
             if isSprinting then
-                local hpPercent = hum.Health / hum.MaxHealth
-                move *= (6 * getSprintMultiplier(hpPercent))
+                move *= 6*getSprintMultiplier(hum.Health/hum.MaxHealth)
             end
             char:TranslateBy(move)
         end
     end)
-
-    -- Update on respawn
     player.CharacterAdded:Connect(function(newChar)
-        char = newChar
-        hum = char:WaitForChild("Humanoid")
+        char=newChar
+        hum=char:WaitForChild("Humanoid")
     end)
 end
 
--- Demon Combat
 local function startDemonCombat()
     local player = Players.LocalPlayer
     local char = player.Character or player.CharacterAdded:Wait()
@@ -282,111 +321,63 @@ local function startDemonCombat()
     local valuesToRemove = {"isDashing"}
     local delayTime = 0.8
 
-    RunService.Heartbeat:Connect(function(dt)
+    RunService.Heartbeat:Connect(function()
         if not DEMON_COMBAT_ENABLED then return end
         if not char or not hum or not hum.Parent then return end
         for _, child in ipairs(char:GetChildren()) do
-            if table.find(valuesToRemove, child.Name) then
-                Debris:AddItem(child, delayTime)
+            if table.find(valuesToRemove,child.Name) then
+                Debris:AddItem(child,delayTime)
             end
         end
     end)
-
     player.CharacterAdded:Connect(function(newChar)
-        char = newChar
-        hum = char:WaitForChild("Humanoid")
+        char=newChar
+        hum=char:WaitForChild("Humanoid")
     end)
 end
 
--- 🔹 7️⃣ Rayfield Tabs / Toggles / Sliders
-local ESPTab = Window:CreateTab("ESP", 4483362458)
-local CombatTab = Window:CreateTab("Combat", 4483362458)
-
--- Sections
-local PlayerESPSection = ESPTab:CreateSection("Player ESP")
-local NPCESPSection = ESPTab:CreateSection("NPC ESP")
-local SlayerSection = CombatTab:CreateSection("Slayer Combat")
-local DemonSection = CombatTab:CreateSection("Demon Combat")
-
--- ESP Toggles
-ESPTab:CreateToggle({
-    Name = "Player ESP (F3)",
-    CurrentValue = PLAYER_ESP_ENABLED,
-    Flag = "PlayerESP",
-    Callback = function(Value)
-        PLAYER_ESP_ENABLED = Value
-    end
-})
-ESPTab:CreateToggle({
-    Name = "NPC ESP (F4)",
-    CurrentValue = NPC_ESP_ENABLED,
-    Flag = "NPCESP",
-    Callback = function(Value)
-        NPC_ESP_ENABLED = Value
-    end
-})
-
--- ESP Sliders
-ESPTab:CreateSlider({
-    Name = "Player ESP Range",
-    Range = {500,6000},
-    Increment = 100,
-    Suffix = "Studs",
-    CurrentValue = MAX_PLAYER_RANGE,
-    Flag = "PlayerRange",
-    Callback = function(Value)
-        MAX_PLAYER_RANGE = Value
-    end
-})
-ESPTab:CreateSlider({
-    Name = "NPC ESP Range",
-    Range = {50,500},
-    Increment = 10,
-    Suffix = "Studs",
-    CurrentValue = MAX_RANGE,
-    Flag = "NPCRange",
-    Callback = function(Value)
-        MAX_RANGE = Value
-    end
-})
-ESPTab:CreateSlider({
-    Name = "HP Bar Max Distance",
-    Range = {25,300},
-    Increment = 5,
-    Suffix = "Studs",
-    CurrentValue = HP_BAR_MAX_DISTANCE,
-    Flag = "HPDistance",
-    Callback = function(Value)
-        HP_BAR_MAX_DISTANCE = Value
-    end
-})
-
--- Combat toggles
-CombatTab:CreateToggle({
-    Name = "Slayer Combat",
-    CurrentValue = SLAYER_COMBAT_ENABLED,
-    Flag = "SlayerCombat",
-    Callback = function(Value)
-        SLAYER_COMBAT_ENABLED = Value
-    end
-})
-CombatTab:CreateToggle({
-    Name = "Demon Combat",
-    CurrentValue = DEMON_COMBAT_ENABLED,
-    Flag = "DemonCombat",
-    Callback = function(Value)
-        DEMON_COMBAT_ENABLED = Value
-    end
-})
-
--- Start combat loops
 startSlayerCombat()
 startDemonCombat()
 
--- 🔹 8️⃣ Notification
-Rayfield:Notify({
-    Title = "GURTHUB Loaded",
-    Content = "ESP & Combat ready",
-    Duration = 5,
-    Image = 4483362458
-})
+-- 🔹 6️⃣ Rayfield Tabs
+local ESPTab = Window:CreateTab("ESP",4483362458)
+local CombatTab = Window:CreateTab("Combat",4483362458)
+local TPTab = Window:CreateTab("Teleport",4483362458)
+
+-- ESP Section
+ESPTab:CreateSection("Player ESP")
+ESPTab:CreateSection("NPC ESP")
+
+-- ESP Toggles & Sliders
+ESPTab:CreateToggle({Name="Player ESP (F3)",CurrentValue=PLAYER_ESP_ENABLED,Callback=function(Value) PLAYER_ESP_ENABLED=Value end})
+ESPTab:CreateToggle({Name="NPC ESP (F4)",CurrentValue=NPC_ESP_ENABLED,Callback=function(Value) NPC_ESP_ENABLED=Value end})
+ESPTab:CreateSlider({Name="Player ESP Range",Range={500,6000},Increment=100,Suffix="Studs",CurrentValue=MAX_PLAYER_RANGE,Callback=function(Value) MAX_PLAYER_RANGE=Value end})
+ESPTab:CreateSlider({Name="NPC ESP Range",Range={50,500},Increment=10,Suffix="Studs",CurrentValue=MAX_RANGE,Callback=function(Value) MAX_RANGE=Value end})
+ESPTab:CreateSlider({Name="HP Bar Max Distance",Range={25,300},Increment=5,Suffix="Studs",CurrentValue=HP_BAR_MAX_DISTANCE,Callback=function(Value) HP_BAR_MAX_DISTANCE=Value end})
+
+-- Combat Toggles
+CombatTab:CreateSection("Slayer Combat")
+CombatTab:CreateSection("Demon Combat")
+CombatTab:CreateToggle({Name="Slayer Combat",CurrentValue=SLAYER_COMBAT_ENABLED,Callback=function(Value) SLAYER_COMBAT_ENABLED=Value end})
+CombatTab:CreateToggle({Name="Demon Combat",CurrentValue=DEMON_COMBAT_ENABLED,Callback=function(Value) DEMON_COMBAT_ENABLED=Value end})
+
+-- Teleport Buttons
+local function createTPButton(name,callback)
+    TPTab:CreateButton({Name=name,Callback=callback})
+end
+
+createTPButton("EventShop",function() teleportTo("eventshop") end)
+createTPButton("EventShop View",function()
+    if activeViewPart then stopViewing() else startViewing(findPartByName("eventshop")) end
+end)
+createTPButton("Boss",function() teleportTo("bossspawn") end)
+createTPButton("Boss View",function()
+    if activeViewPart then stopViewing() else startViewing(findPartByName("bossspawn")) end
+end)
+createTPButton("Tokyo",function() teleportToPlace(14220581261) end)
+createTPButton("Forest",function() teleportToPlace(14220581641) end)
+createTPButton("Plains",function() teleportToPlace(14220581884) end)
+createTPButton("Fortress",function() teleportToPlace(14220582083) end)
+
+-- 🔹 7️⃣ Notification
+Rayfield:Notify({Title="GURTHUB Loaded",Content="ESP, Combat & TP Ready",Duration=5,Image=4483362458})
