@@ -18,14 +18,16 @@ local MAX_PLAYER_RANGE = 6000
 local HP_BAR_MAX_DISTANCE = 150
 local PLAYER_ESP_ENABLED = true
 local NPC_ESP_ENABLED = true
-local TpWalking = true
-local Speed = 0.40
-local isSprinting = false
-local SlayerEnabled = true
-local DemonEnabled = true
 local ESP_GUIS = {}
 local valuesToRemove = {"isDashing"}
 local delayTime = 0.8
+
+-- Slayer Combat globals
+getgenv().TpWalking = true
+getgenv().Speed = 0.40
+local isSprinting = false
+local SlayerEnabled = true
+local DemonEnabled = true
 
 -- Create Window
 local Window = Rayfield:CreateWindow({
@@ -140,10 +142,10 @@ SlayerSection:CreateSlider({
     Range = {0.1, 1.0},
     Increment = 0.01,
     Suffix = "",
-    CurrentValue = Speed,
+    CurrentValue = getgenv().Speed,
     Flag = "TPSpeed",
     Callback = function(Value)
-        Speed = Value
+        getgenv().Speed = Value
     end
 })
 
@@ -325,7 +327,7 @@ liveFolder.ChildAdded:Connect(function(child)
 end)
 
 --------------------------------------------------
--- COMBAT HEARTBEAT
+-- SLAYER COMBAT
 --------------------------------------------------
 UserInputService.InputBegan:Connect(function(input, gpe)
     if not gpe and input.KeyCode == Enum.KeyCode.LeftShift then
@@ -340,25 +342,41 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 RunService.Heartbeat:Connect(function(dt)
-    if not char or not hum or not hum.Parent then return end
+    if not SlayerEnabled or not char or not hum or not hum.Parent then return end
 
     -- Dash cleanup
-    if DemonEnabled or SlayerEnabled then
-        for _, child in ipairs(char:GetChildren()) do
-            if table.find(valuesToRemove, child.Name) then
-                Debris:AddItem(child, delayTime)
-            end
+    for _, child in ipairs(char:GetChildren()) do
+        if table.find(valuesToRemove, child.Name) then
+            Debris:AddItem(child, delayTime)
         end
     end
 
     -- TP Walking
-    if SlayerEnabled and TpWalking and hum.MoveDirection.Magnitude > 0 then
-        local move = hum.MoveDirection * Speed * dt
+    if getgenv().TpWalking and hum.MoveDirection.Magnitude > 0 then
+        local move = hum.MoveDirection * getgenv().Speed * dt
         if isSprinting then
             local hpPercent = hum.Health / hum.MaxHealth
             move *= (6 * getSprintMultiplier(hpPercent))
         end
         char:TranslateBy(move)
+    end
+end)
+
+-- Update refs on respawn
+localPlayer.CharacterAdded:Connect(function(newChar)
+    char = newChar
+    hum = char:WaitForChild("Humanoid")
+end)
+
+--------------------------------------------------
+-- DEMON COMBAT
+--------------------------------------------------
+RunService.Heartbeat:Connect(function()
+    if not DemonEnabled or not char or not hum or not hum.Parent then return end
+    for _, child in ipairs(char:GetChildren()) do
+        if table.find(valuesToRemove, child.Name) then
+            Debris:AddItem(child, delayTime)
+        end
     end
 end)
 
